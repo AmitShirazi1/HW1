@@ -18,8 +18,7 @@ class KnnClassifier:
         self.k = k
         self.p = p
 
-        # TODO - Place your student IDs here. Single submitters please use a tuple like so: self.ids = (123456789,)
-        self.ids = (123456789, 987654321)
+        self.ids = (319044434, 314779166)
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> None:
         """
@@ -30,10 +29,12 @@ class KnnClassifier:
         :param y: A 1-dimensional numpy array of m rows. it is guaranteed to match X's rows in length (|m_x| == |m_y|).
             Array datatype is guaranteed to be np.uint8.
         """
+        self.x_train = X
+        self.y_train = y
 
-        # TODO - your code here
-        pass
-
+    def minkowski_distance(self, x1, x2, axis=None):
+        return np.power(np.sum(np.power(np.abs(x1 - x2), self.p), axis=axis), 1/self.p)
+    
     def predict(self, X: np.ndarray) -> np.ndarray:
         """
         This method predicts the y labels of a given dataset X, based on a previous training of the model.
@@ -43,13 +44,8 @@ class KnnClassifier:
             Array datatype is guaranteed to be np.float32.
         :return: A 1-dimensional numpy array of m rows. Should be of datatype np.uint8.
         """
-
-        # TODO - your code here
-        pass
-
-        ### Example code - don't use this:
-        # return np.random.randint(low=0, high=2, size=len(X), dtype=np.uint8)
-
+        distances = self.minkowski_distance(self.x_train, X[:, np.newaxis], axis=2)
+        sorted_indices = np.argsort(distances, axis=0) # TODO: look at this
 
 def main():
 
