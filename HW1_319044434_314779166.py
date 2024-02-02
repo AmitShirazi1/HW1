@@ -32,12 +32,29 @@ class KnnClassifier:
         self.x_train = X
         self.y_train = y
 
+
     def minkowski_distance(self, x1, x2, axis=None):
         ''' This function calculates the Minkowski distance between two vectors or matrices.
             if axis=None, it calculates the distance between two vectors,
             if axis=2, it calculates the distance between two matrices (each row of the first matrix from each row of the second matrix). '''
         return np.power(np.sum(np.power(np.abs(x1 - x2), self.p), axis=axis), 1/self.p)
 
+
+    def k_neighbor_tie_breaking(self, sorted_indices):
+        ''' The purpose of this function is to decide between different candidates for the k-nearest neighbor. '''
+        k_neighbor_idx = sorted_indices[self.k-1]  # The index of the k-th nearest neighbor.
+        points_equal_dist_to_k_idx = np.where(self.distances[self.i] == self.distances[self.i][k_neighbor_idx])[0]  # Indices of the points who are k-nearest to the test point with equal distance.
+        labels_equal_dist_to_k = self.y_train[points_equal_dist_to_k_idx]  # The labels of the points who are k-nearest to the test point with equal distance.
+
+        idx_of_min_label = points_equal_dist_to_k_idx[np.argmin(labels_equal_dist_to_k)]  # Choose the point with the minimum label according to lexicographic order.
+        temp = sorted_indices[self.k-1]  # Save the index of the previous k-th nearest neighbor.
+        idx_to_switch = np.where(sorted_indices == idx_of_min_label)[0]  # Find the index of the point with the minimum label according to lexicographic order.
+        sorted_indices[self.k-1] = idx_of_min_label  # Change the k-nearest neighbor to be the point with the minimum label according to lexicographic order.
+        sorted_indices[idx_to_switch] = temp  # Switch locations between the previous k-nearest neighbor and the new one we found.
+    
+        self.i += 1
+        return sorted_indices
+    
 
     def break_tie_between_labels(self, col, tied_labels):
         ''' This function breaks the tie between the labels of the k nearest neighbors.
@@ -47,7 +64,7 @@ class KnnClassifier:
         closest_label = self.y_train[closest_index]
 
         if closest_label in tied_labels:
-            closest_points = np.where(self.distances[self.i] == self.distances[self.i][closest_index])  # Indices of the points who are nearest to the test point with equal distance.
+            closest_points = np.where(self.distances[self.i] == self.distances[self.i][closest_index])[0]  # Indices of the points who are nearest to the test point with equal distance.
             closest_labels = self.y_train[closest_points]  # The labels of the points who are nearest to the test point with equal distance.
             closest_tied_labels = np.intersect1d(closest_labels, tied_labels)  # Only keeping the labels with maximum count.
             return np.min(closest_tied_labels)  # Choose a label according to lexicographic order.
@@ -55,10 +72,11 @@ class KnnClassifier:
             return self.break_tie_between_labels(col+1, tied_labels)  # If the label of the nearest neighbor is not in the tied labels, move to the next neighbor.
 
 
-    def tie_breaking(self, labels):
+    def labels_tie_breaking(self, labels):
+        ''' This function is to break the tie between the labels of the k nearest neighbors. '''
         unique, counts = np.unique(labels, return_counts=True)  # Calculate the count of each label in the k nearest neighbors.
         max_count_of_label = np.max(counts)
-        max_count_of_label_idx = np.where(counts == max_count_of_label)
+        max_count_of_label_idx = np.where(counts == max_count_of_label)[0]
         tied_labels = unique[max_count_of_label_idx]  # Only taking the labels with maximum count.
         pred_label = self.break_tie_between_labels(0, tied_labels) if len(tied_labels) > 1 else tied_labels[0]
 
@@ -77,11 +95,14 @@ class KnnClassifier:
         """
         self.distances = self.minkowski_distance(self.x_train, X[:, np.newaxis], axis=2)
         # Distances is a 2d matrix containing the distances of each test point (in the rows) from each train point (in the columns).
-        self.sorted_indices = np.argsort(self.distances, axis=1) # Sorts the indices of the distances matrix column in each row (test points), in ascending order.
+        sorted_indices_temp = np.argsort(self.distances, axis=1) # Sorts the indices of the distances matrix column in each row (test points), in ascending order.
+        self.i = 0
+        self.sorted_indices = np.apply_along_axis(self.k_neighbor_tie_breaking, axis=1, arr=sorted_indices_temp)
+
         k_nearest_indices = self.sorted_indices[:, :self.k] # Takes the k nearest neighbors for each test point.
         k_nearest_labels = self.y_train[k_nearest_indices]
         self.i = 0  # Saves the row number of the test point we are currently predicting.
-        predictions = np.apply_along_axis(self.tie_breaking, axis=1, arr=k_nearest_labels)  # TODO: Add another tie-breaker.
+        predictions = np.apply_along_axis(self.labels_tie_breaking, axis=1, arr=k_nearest_labels)
         return predictions        
 
        
